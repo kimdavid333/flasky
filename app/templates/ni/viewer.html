@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" charset="utf-8"></script>
+    <title>Realtime View</title>
+    <script src="{{url_for('static', filename='node_modules/jquery/dist/jquery.js')}}"></script>
+    <script
+      src="{{url_for('static', filename='node_modules/socket.io-client/dist/socket.io.js')}}"
+      crossorigin="anonymous"
+    ></script>
+    <script src="{{url_for('static', filename='node_modules/d3/dist/d3.js')}}"></script>
+
+    <script
+      type="module"
+      src="{{ url_for('static', filename='js/viewer.js') }}"
+    ></script>
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/index.css') }}"
+    />
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  </head>
+
+  <body>
+    <nav>
+      <ul class="container">
+        <li class="viewer"><a href="/viewer/">Viewer</a></li>
+        <li class="history_view"><a href="/historic/">History Data</a></li>
+        <li class="blank_fill"></li>
+        <li class="logout">
+          <a href="{{ url_for('viewer_bp.logout') }}">Logout</a>
+        </li>
+      </ul>
+    </nav>
+    <div class="content-body">
+      <div class="input-body" id="input-body">
+        <form id="ch_checkbox" method="POST">
+          <fieldset>
+            <legend>Select Channels</legend>
+            <text> Vib </text>
+            <br />
+            <div id="checkbox_div_Dev1-CH1">
+              <input
+                type="checkbox"
+                id="Dev1-CH1-checkbox"
+                name="interest"
+                value="Dev1-CH1"
+                data-vib="vib1"
+                checked
+              />
+              Dev1-CH1
+            </div>
+            <div id="checkbox_div_Dev1-CH2">
+              <input
+                type="checkbox"
+                id="Dev1-CH2-checkbox"
+                name="interest"
+                value="Dev1-CH2"
+                data-vib="vib2"
+                checked
+              />
+              Dev1-CH2
+            </div>
+            <div id="checkbox_div_Dev1-CH3">
+              <input
+                type="checkbox"
+                id="Dev1-CH3-checkbox"
+                name="interest"
+                value="Dev1-CH3"
+                data-vib="vib3"
+                checked
+              />
+              Dev1-CH3
+            </div>
+            <div id="checkbox_div_Dev1-CH4">
+              <input
+                type="checkbox"
+                id="Dev1-CH4-checkbox"
+                name="interest"
+                value="Dev1-CH4"
+                data-vib="vib4"
+                checked
+              />
+              Dev1-CH4
+            </div>
+            <div id="checkbox_div_Dev2-CH1">
+              <input
+                type="checkbox"
+                id="Dev2-CH1-checkbox"
+                name="interest"
+                value="Dev2-CH1"
+                data-vib="vib5"
+                checked
+              />
+              Dev2-CH1
+            </div>
+            <div id="checkbox_div_Dev2-CH2">
+              <input
+                type="checkbox"
+                id="Dev2-CH2-checkbox"
+                name="interest"
+                value="Dev2-CH2"
+                data-vib="vib6"
+                checked
+              />
+              Dev2-CH2
+            </div>
+            <div id="checkbox_div_Dev2-CH3">
+              <input
+                type="checkbox"
+                id="Dev2-CH3-checkbox"
+                name="interest"
+                value="Dev2-CH3"
+                data-vib="vib7"
+                checked
+              />
+              Dev2-CH3
+            </div>
+            <div id="checkbox_div_Dev2-CH4">
+              <input
+                type="checkbox"
+                id="Dev2-CH4-checkbox"
+                name="interest"
+                value="Dev2-CH4"
+                data-vib="vib8"
+                checked
+              />
+              Dev2-CH4
+            </div>
+          </fieldset>
+          <br />
+        </form>
+      </div>
+      <div class="wrapper">
+        <div class="main_content">
+          <div class="info-card">
+            <div class="card--content" style="padding: 5px">
+              <header
+                class="card-header"
+                style="justify-content: space-between"
+              >
+                <h2>General Information</h2>
+              </header>
+              <div class="card-body" id="card-body"></div>
+            </div>
+          </div>
+
+          <div class="chart-container" id="content">
+            <button id="export-btn" class="btn">Export</button>
+            <button id="csv-btn" class="btn">Download CSV</button>
+          </div>
+
+          <div class="tabs">
+            <div class="tabs__sidebar">
+              <button class="tabs__button" data-for-tab="time">Time</button>
+              <button class="tabs__button" data-for-tab="fft">FFT</button>
+            </div>
+            <div class="tabs__content" data-tab="time">
+              <div id="vib1_plot" class="chart"></div>
+              <div id="vib2_plot" class="chart"></div>
+              <div id="vib3_plot" class="chart"></div>
+              <div id="vib4_plot" class="chart"></div>
+              <div id="vib5_plot" class="chart"></div>
+              <div id="vib6_plot" class="chart"></div>
+              <div id="vib7_plot" class="chart"></div>
+              <div id="vib8_plot" class="chart"></div>
+            </div>
+            <div class="tabs__content" data-tab="fft">
+              <div id="vib1_fft" class="chart"></div>
+              <div id="vib2_fft" class="chart"></div>
+              <div id="vib3_fft" class="chart"></div>
+              <div id="vib4_fft" class="chart"></div>
+              <div id="vib5_fft" class="chart"></div>
+              <div id="vib6_fft" class="chart"></div>
+              <div id="vib7_fft" class="chart"></div>
+              <div id="vib8_fft" class="chart"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      function setupTabs() {
+        document.querySelectorAll(".tabs__button").forEach((button) => {
+          button.addEventListener("click", () => {
+            const sideBar = button.parentElement
+            const tabsContainer = sideBar.parentElement
+            const tabNumber = button.dataset.forTab
+            const tabToActivate = tabsContainer.querySelector(
+              `.tabs__content[data-tab="${tabNumber}"]`
+            )
+
+            sideBar.querySelectorAll(".tabs__button").forEach((button) => {
+              button.classList.remove("tabs__button--active")
+            })
+
+            tabsContainer
+              .querySelectorAll(".tabs__content")
+              .forEach((content) => {
+                content.classList.remove("tabs__content--active")
+              })
+
+            tabToActivate.classList.add("tabs__content--active")
+            button.classList.add("tabs__button--active")
+          })
+        })
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        setupTabs()
+
+        document.querySelectorAll(".tabs").forEach((tabsContainer) => {
+          tabsContainer.querySelector(".tabs__sidebar .tabs__button").click()
+        })
+      })
+    </script>
+  </body>
+</html>

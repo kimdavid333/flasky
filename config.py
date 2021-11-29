@@ -1,18 +1,19 @@
-import os
-basedir = os.path.abspath(os.path.dirname(__file__))
-
+from os import environ, path
+from dotenv import load_dotenv
+basedir = path.abspath(path.dirname(__file__))
+load_dotenv(path.join(basedir, ".env"))
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard to guess string'
-    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.googlemail.com')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT', '587'))
-    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in \
+    SECRET_KEY = environ.get('SECRET_KEY') or 'hard to guess string'
+    MAIL_SERVER = environ.get('MAIL_SERVER', 'smtp.googlemail.com')
+    MAIL_PORT = int(environ.get('MAIL_PORT', '587'))
+    MAIL_USE_TLS = environ.get('MAIL_USE_TLS', 'true').lower() in \
         ['true', 'on', '1']
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_USERNAME = environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = environ.get('MAIL_PASSWORD')
     FLASKY_MAIL_SUBJECT_PREFIX = '[Flasky]'
     FLASKY_MAIL_SENDER = 'Flasky Admin <flasky@example.com>'
-    FLASKY_ADMIN = os.environ.get('FLASKY_ADMIN')
+    FLASKY_ADMIN = environ.get('FLASKY_ADMIN')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     @staticmethod
@@ -22,19 +23,19 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'data-dev.sqlite')
+    SQLALCHEMY_DATABASE_URI = environ.get('DEV_DATABASE_URL') or \
+        'sqlite:///' + path.join(basedir, 'data-dev.sqlite')
 
 
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or \
+    SQLALCHEMY_DATABASE_URI = environ.get('TEST_DATABASE_URL') or \
         'sqlite://'
 
 
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'data.sqlite')
+    SQLALCHEMY_DATABASE_URI = environ.get('DATABASE_URL') or \
+        'sqlite:///' + path.join(basedir, 'data.sqlite')
 
 
 config = {
