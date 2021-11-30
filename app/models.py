@@ -5,6 +5,8 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 from flask_login import UserMixin, AnonymousUserMixin
 from . import db, login_manager
+from flask_table import Table, Col
+from datetime import datetime as dt
 
 
 class Permission:
@@ -32,11 +34,14 @@ class Role(db.Model):
     def insert_roles():
         roles = {
             'User': [Permission.FOLLOW, Permission.COMMENT, Permission.WRITE],
-            'Moderator': [Permission.FOLLOW, Permission.COMMENT,
-                          Permission.WRITE, Permission.MODERATE],
-            'Administrator': [Permission.FOLLOW, Permission.COMMENT,
-                              Permission.WRITE, Permission.MODERATE,
-                              Permission.ADMIN],
+            'Moderator': [
+                Permission.FOLLOW, Permission.COMMENT, Permission.WRITE,
+                Permission.MODERATE
+            ],
+            'Administrator': [
+                Permission.FOLLOW, Permission.COMMENT, Permission.WRITE,
+                Permission.MODERATE, Permission.ADMIN
+            ],
         }
         default_role = 'User'
         for r in roles:
@@ -87,7 +92,7 @@ class User(UserMixin, db.Model):
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
         if self.role is None:
-            if self.email == current_app.config['FLASKY_ADMIN']:
+            if self.email in current_app.config['FLASKY_ADMIN']:
                 self.role = Role.query.filter_by(name='Administrator').first()
             if self.role is None:
                 self.role = Role.query.filter_by(default=True).first()
@@ -141,8 +146,10 @@ class User(UserMixin, db.Model):
 
     def generate_email_change_token(self, new_email, expiration=3600):
         s = Serializer(current_app.config['SECRET_KEY'], expiration)
-        return s.dumps(
-            {'change_email': self.id, 'new_email': new_email}).decode('utf-8')
+        return s.dumps({
+            'change_email': self.id,
+            'new_email': new_email
+        }).decode('utf-8')
 
     def change_email(self, token):
         s = Serializer(current_app.config['SECRET_KEY'])
@@ -192,6 +199,7 @@ class AnonymousUser(AnonymousUserMixin):
     def is_administrator(self):
         return False
 
+
 login_manager.anonymous_user = AnonymousUser
 
 
@@ -206,3 +214,658 @@ class Post(db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+
+def num_admin_users():
+    num_admin = len(User.query.filter_by(admin=True, active=True).all())
+    print('number of admin = ', num_admin)
+    return num_admin
+
+
+def set_active(email):
+    user = User.query.filter_by(email=email).first()
+    user.active = True
+    db.session.commit()
+
+
+def de_active(user):
+    user.active = False
+    db.session.commit()
+
+
+def to_json(all_vendors):
+    # for ven in all_vendors:
+    #     print(f'@to_json, ven.double_to_dict() = {ven.double_to_dict()}')
+    v = [ven.double_to_dict() for ven in all_vendors]
+    return v
+
+
+def insert_records(record):
+    """Insert MQTT data to database
+
+    Parameters
+    ----------
+    records : list of dict
+        Each dict represents WISE 2410 Vib data
+    """
+    row_data = WISE_Accel_Model(info_id=record['info_id'],
+                                X_Axis=record['Accelerometer']['X-Axis'],
+                                Y_Axis=record['Accelerometer']['Y-Axis'],
+                                Z_Axis=record['Accelerometer']['Z-Axis'],
+                                LogIndex=record['Accelerometer']['LogIndex'],
+                                Timestamp=record['Accelerometer']['Timestamp'],
+                                Device=record['Device'],
+                                created_at=dt.now())
+
+    db.session.add(row_data)
+    db.session.commit()
+
+
+def insert_information_info(info_record):
+    """Insert Exp Record to the exp_table
+
+    Parameters
+    ----------
+    exp_record : dict
+        the dict contain info about the current experiment (exp_id, inspector, model, serial, inspection date)
+    """
+    info_record = Information_Model(id=info_record['id'],
+                                    inspector=info_record['inspector'],
+                                    model=info_record['model'],
+                                    serial=info_record['serial'])
+    db.session.add(info_record)
+    db.session.commit()
+
+
+class Vib1_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib1_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib1_table {self.index}>"
+
+
+class Vib2_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib2_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib2_table {self.index}>"
+
+
+class Vib3_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib3_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib3_table {self.index}>"
+
+
+class Vib4_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib4_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib4_table {self.index}>"
+
+
+class Vib5_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib5_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib5_table {self.index}>"
+
+
+class Vib6_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'vib6_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<vib6_table {self.index}>"
+
+
+class Amp1_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'amp1_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<amp1_table {self.index}>"
+
+
+class Amp2_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'amp2_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<amp2_table {self.index}>"
+
+
+class Amp3_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'amp3_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<amp3_table {self.index}>"
+
+
+class Temp1_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'temp1_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<temp1_table {self.index}>"
+
+
+class Temp2_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'temp2_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<temp2_table {self.index}>"
+
+
+class Temp3_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'temp3_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<temp3_table {self.index}>"
+
+
+class Temp4_Table(db.Model):
+    """Exp Table model."""
+    __tablename__ = 'temp4_table'
+
+    index = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer,
+                   db.ForeignKey('information_table.id'),
+                   nullable=False)
+    ch_name = db.Column(db.String())
+    value = db.Column(db.LargeBinary  # change the type to BYTEA
+                      )
+    spec = db.Column(db.Integer)
+    sprate = db.Column(db.Integer)
+    update_flag = db.Column(db.Boolean)
+    time = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<temp4_table {self.index}>"
+
+
+class Information_Model(db.Model):
+    """Information table model"""
+    __tablename__ = 'information_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    inspector = db.Column(db.String())
+    model = db.Column(db.String())
+    serial = db.Column(db.String())
+    rpm = db.Column(db.Integer)
+    vib1 = db.Column(db.Boolean)
+    vib2 = db.Column(db.Boolean)
+    vib3 = db.Column(db.Boolean)
+    vib4 = db.Column(db.Boolean)
+    vib5 = db.Column(db.Boolean)
+    vib6 = db.Column(db.Boolean)
+    amp1 = db.Column(db.Boolean)
+    amp2 = db.Column(db.Boolean)
+    amp3 = db.Column(db.Boolean)
+    temp1 = db.Column(db.Boolean)
+    temp2 = db.Column(db.Boolean)
+    temp3 = db.Column(db.Boolean)
+    temp4 = db.Column(db.Boolean)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    # Single object # 1
+
+    def to_dict(self):
+        model_dict = dict(self.__dict__)
+        del model_dict['_sa_instance_state']
+        return model_dict
+
+    # Method single object # 2
+
+    def single_to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    # Multiple objects
+    def double_to_dict(self):
+        result = {}
+        for key in self.__mapper__.c.keys():
+            if getattr(self, key) is not None:
+                result[key] = getattr(self, key)
+            else:
+                result[key] = getattr(self, key)
+        return result
+
+    def __repr__(self):
+        return f"<information_table {self.index}>"
+
+    def __repr__(self):
+        return f"<Information_Model {self.id}>"
+
+
+class Information_Table(Table):
+    id = Col('ID')
+    inspector = Col('Inspector')
+    model = Col('Model')
+    serial = Col('Serial')
+    created_at = Col('Created_at')

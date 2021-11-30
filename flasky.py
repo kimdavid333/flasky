@@ -1,7 +1,7 @@
 import os
 import click
 from flask_migrate import Migrate
-from app import create_app, db
+from app import create_app, db, socketio
 from app.models import User, Role, Permission, Post
 
 app = create_app(os.getenv('FLASK_CONFIG') or 'default')
@@ -23,3 +23,7 @@ def test(test_names):
     else:
         tests = unittest.TestLoader().discover('tests')
     unittest.TextTestRunner(verbosity=2).run(tests)
+
+
+if __name__ == "__main__":
+    socketio.run(app, host='0.0.0.0', port=8989)

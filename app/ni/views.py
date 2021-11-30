@@ -1,16 +1,13 @@
 """Routing phase 1"""
 """ include all logged-in routes"""
 
-from flask_login import current_user, login_required, logout_user
 from flask import render_template, request, redirect, url_for
 from app import socketio, db
 from app.models import de_active, de_active
-from app.util.dddWiseDataManager import WiseDataManager
 from threading import Thread
 from . import ni
 object_objs = None
 records_df = None
-dataPlot = WiseDataManager()
 dataContainer = []
 datasheet_column_name = {}
 previous_updateFlags = []
